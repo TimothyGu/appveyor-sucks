@@ -1,0 +1,28 @@
+{
+  "name": "appveyor-watch",
+  "version": "0.0.0",
+  "description": "Simple AppVeyor status CLI and notifier",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TimothyGu/appveyor-watch.git"
+  },
+  "keywords": [
+    "appveyor",
+    "notifier"
+  ],
+  "author": "Timothy Gu <timothygu99@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/TimothyGu/appveyor-watch/issues"
+  },
+  "homepage": "https://github.com/TimothyGu/appveyor-watch",
+  "dependencies": {
+    "commander": "^2.6.0",
+    "easy-table": "^0.3.0",
+    "node-notifier": "^4.1.0"
+  }
+}

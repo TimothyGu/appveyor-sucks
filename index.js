@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+/* jshint asi: true, laxcomma: true, node: true */
+
 'use strict'
 
 var https = require('https')
@@ -5,10 +8,9 @@ var https = require('https')
   , prog = require('commander')
   , Table = require('easy-table')
 
-var exit = new (require('events').EventEmitter)()
-  , mainObj = {}
+var mainObj = {}
   , build
-  , interesting = ['running', 'failed']
+  , lastNotifiedBuild = ''
   , completed = [ 'failed', 'success' ]
   , table
 
@@ -17,13 +19,9 @@ prog
   .usage('[options] <repo>')
   .option('-b, --branch <branch>', 'branch to watch')
   .option('-B, --build <version>', 'build version to watch')
+  .option('-n, --interval <ms>', 'refresh interval, default to 800', 800)
   .option('-w, --watch', 'force watching even when build already terminated')
   .parse(process.argv);
-
-function noop () {}
-
-// By default no op
-exit.on('ok', noop)
 
 function notify (title, message) {
   notifier.notify({
@@ -33,17 +31,9 @@ function notify (title, message) {
   , message: message })
 }
 
-function die (details, code) {
-  if (prog.watch) {
-    console.log(details + '\n')
-    return
-  }
-  // Exit when all results have been printed for the last time
-  exit.removeAllListeners('ok')
-  exit.once('ok', function () {
-    console.log(details + '\n')
-    process.exit(code || 0)
-  })
+function die (details) {
+  console.log(details + '\n')
+  return !prog.watch
 }
 
 function main (repo, branch, version, url) {
@@ -82,13 +72,16 @@ function main (repo, branch, version, url) {
         , version: json.build.version
         }
       }
+      if (json.build.status === 'cancelled') {
+        if (lastNotifiedBuild !== json.build.buildId) {
+          lastNotifiedBuild = json.build.buildId
+          notify('Build cancelled', 'Build ' + json.build.version)
+        }
+        if (die('Build cancelled')) return
+      }
+
       var jobs = json.build.jobs
       table = new Table()
-      if (json.build.status === 'canceled') {
-        die('Build canceled')
-      } else if (completed.indexOf(json.build.status) !== -1) {
-        die('Build completed: ' + json.build.status)
-      }
       jobs.map(function (val) {
         table.cell('Job', val.name)
         table.cell('Status', val.status)
@@ -97,26 +90,37 @@ function main (repo, branch, version, url) {
           mainObj[val.jobId] = val.status
         }
         if (mainObj[val.jobId] !== val.status) {
-          notify(val.name, val.status)
+          notify(val.status, val.name)
           mainObj[val.jobId] = val.status
         }
       })
 
       console.log(table.toString())
 
-      // All results printed; OK to exit.
-      exit.emit('ok')
+      if (completed.indexOf(json.build.status) !== -1) {
+        if (lastNotifiedBuild !== json.build.buildId) {
+          lastNotifiedBuild = json.build.buildId
+          notify('Build completed: ' + json.build.status
+            , 'Build ' + json.build.version)
+        }
+
+        if (die('Build completed: ' + json.build.status)) return
+      }
+
       // Continue the loop
-      main(null, null, null, url)
+      return setTimeout(function () {
+        main(null, null, null, url)
+      }, prog.interval)
     })
   })
 }
 
-// Start the loop
 if (!prog.args[0]) {
   console.error();
   console.error('  error: no repo specified');
   console.error();
   process.exit(1)
 }
+
+// Start the loop
 main(prog.args[0], prog.branch, prog.build)
